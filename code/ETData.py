@@ -359,7 +359,6 @@ class ETData():
 # helper functions for drift correction and extraction of basic events   
     @staticmethod
     def helpf(fev,inds):
-        #if inds[1]==579: print fev[-1],inds
         out=[]
         for ff in fev:
             if ((ff[0]>=inds[0] and ff[0]<=inds[1])
@@ -382,108 +381,6 @@ class ETData():
         for kk in range(1,g.shape[1]):
             out.append(interpRange(g[:,0], g[:,kk],tm))
         return np.array(out).T
-    def loadTrajectories(self):
-        ''' load trajectories '''
-        path = getcwd()
-        path = path.rstrip('code')
-        order = np.load(path+'/input/vp%03d/ordervp%03db%d.npy'%(self.vp,self.vp,self.block))[self.trial]
-        if self.vp>1 and self.vp<10: nfo=(1,1,self.block,order) 
-        else: nfo=(self.vp,self.vp,self.block,order) 
-        s=path+'/input/vp%03d/vp%03db%dtrial%03d.npy'%nfo
-        traj=np.load(s)
-        self.oldtraj=traj
-        
-    def computeAgentDistances(self):
-        ''' self.dist computes the distance from gaze to agent
-            self.dev is the angle difference between the direction
-            of the gaze motion and the direction of the agent motion'''
-        self.loadTrajectories()
-        #self.traj=traj
-        g=self.getGaze()
-        traj=self.oldtraj[:self.fs.shape[0],:,:]
-        self.dist=np.zeros((g.shape[0],traj.shape[1]))
-        self.traj=np.zeros((g.shape[0],traj.shape[1],traj.shape[2]))
-        self.dev=np.zeros((g.shape[0]-1,traj.shape[1]))
-        for a in range(traj.shape[1]):
-            self.traj[:,a,0]=interpRange(self.fs[:,1], traj[:,a,0],g[:,0])
-            self.traj[:,a,1]=interpRange(self.fs[:,1], traj[:,a,1],g[:,0])
-            dx=np.roll(self.traj[:,a,0],int(0*self.hz),axis=0)-g[:,7]
-            dy=np.roll(self.traj[:,a,1],int(0*self.hz),axis=0)-g[:,8]
-            self.dist[:,a]= np.sqrt(np.power(dx,2)+np.power(dy,2))
-            dg=np.diff(g[:,[7,8]],axis=0);
-            #print int(PLAG*self.hz)
-            dt=np.roll(np.diff(self.traj[:,a,:],axis=0),int(PLAG*self.hz),axis=0)
-            self.dev[:,a]= (np.arctan2(dg[:,0],dg[:,1])
-                -np.arctan2(dt[:,0],dt[:,1]))
-        self.dev=np.mod(self.dev/np.pi*180.0+180,360)-180
-
-############################################################
-# drift correction
-    def driftCorrection(self,jump=0):
-        """ performs drift correction for each eye and axis
-            separately based on the fixation location immediately
-            preceding the trial onset
-            jump - determines the frame at which the drift correction
-                is done relative to trial onset
-        """
-        s= '\tt= %d, '%(self.trial)
-        kk=(np.diff(self.gaze[:,0])>8).nonzero()[0]
-        if len(kk)>0: print s, 'LAG >8, ',kk, self.gaze[kk+1,0]-self.gaze[kk,0], self.gaze[kk,3], self.gaze[kk,6]
-        dif=np.isnan(self.gaze[:,1]).sum()-np.isnan(self.gaze[:,4]).sum()
-        if self.focus==LEFTEYE and dif>0:
-            print s,' right eye has more data '%dif
-        if self.focus==RIGHTEYE and dif<0:
-            print s,' left eye has more data '% dif
-
-        if len(self.calib)>0:
-            if self.calib[-1][0][2]<1.5 and self.calib[-1][1][2]<1.5:
-                print s,'calibration good ',len(self.calib)
-            else: print s, 'calibration BAD',self.calib[-1]
-        
-        if self.ts==-1: print  s, 'online dcorr failed'
-        if isinstance(jump,(int,long)) and jump==-1: 
-            print 'skipping drift correction'
-            self.dcfix=[0,0]
-        elif isinstance(jump,(int,long)):
-            # find the latest fixation
-            #print 'manual drift correction'
-            isFix=self.getFixations(phase=1)
-            isFix=np.concatenate([self.getFixations(phase=0),isFix[:50]])
-            h= isFix.size-50-jump
-            while (not np.all(isFix[h:(h+50)]) and h>=0 ): h-=1
-            #print i, d.isFix[0].size-h
-            self.dcfix=[self.gaze[h+10,0]-self.t0[0],self.gaze[h+40,0]-self.t0[0]]
-            if h>=0:
-                for j in [1,4,2,5]:
-                    dif=self.gaze[(h+10):(h+40),j].mean()
-                    self.gaze[:,j]-=dif
-            else: print s,'DRIFT CORRECTION FAILED', np.sum(isFix[-50:])
-        else: 
-                self.gaze[:,[1,2]]-=np.array(jump,ndmin=2)
-                self.gaze[:,[4,5]]-=np.array(jump,ndmin=2)
-        # recompute events
-        self.gaze=self.gaze[:,:7]
-        self.extractBasicEvents()
-        self.extractPursuitEvents()
-##        # reclassify some blinks as saccades
-##        g=self.getGaze()
-##        bsac=[]
-##        for i in range(len(self.bev)): 
-##            s=self.bev[i][0]; e=self.bev[i][1]
-##            if norm(g[e,1:]-g[s-1,1:])>BLINK2SAC:
-##                bsac.append([e-int(BLKMINDUR*self.hz), e])
-##            if e-s>1000: print 't= %d, LONG SEQ OF MISSING DATA'% self.trial
-        # merge events into single stream
-        self.events=[]
-        ind=[0,0,0,0,0]
-        #data[t].extractAgentDistances()
-        d=[self.fev,self.opev,self.cpev,self.sev,self.bev]#,bsac]
-        for f in range(int(30*self.hz)):
-            for k in range(len(d)):
-                if ind[k]< len(d[k]) and d[k][ind[k]][0]==f:
-                    ev=copy(d[k][ind[k]]);
-                    ev.append(k);ind[k]+=1;
-                    self.events.append(ev)
 
 #####################################################
 # identification of basic events
@@ -495,7 +392,7 @@ class ETData():
         dat=self.gaze
         # add two columns with binocular gaze point
         if self.focus==BINOCULAR:
-            print self.gaze.shape
+            #print self.gaze.shape
             gazep=np.array([dat[:,[1,4]].mean(1),dat[:,[2,5]].mean(1)]).T
             temp=dat[np.isnan(dat[:,1]),:]
             if temp.size>0: gazep[np.isnan(dat[:,1]),:]=temp[:,[4,5]]
@@ -529,14 +426,7 @@ class ETData():
         self.fev=ETData.helpf(fev,[self.ts,self.te])
         self.sev=ETData.helpf(sev,[self.ts,self.te])
         # missing trajectories for the following subjects
-        if self.vp>=100 and self.vp<140:
-            self.traj=np.zeros((0,0,2))
-        else:
-            self.computeAgentDistances()
-            for i in range(len(self.fev)):
-                s=self.fev[i][0];e=self.fev[i][1]-1
-                a=selectAgentFIX(self.dist[s:e,:],self.hz)
-                self.fev[i].extend(a)
+        self.traj=np.zeros((0,0,2))
         self.opev=[];self.cpev=[]
     def extractPursuitEvents(self):
         ''' extracts smooth eye movements'''
@@ -772,39 +662,68 @@ class ETData():
                     ax.add_patch(r)
         plt.xlim([0,30000])
         plt.ylim([-1,41])
-    def plotMsgs(self,st=0):
-        ''' plot messages from the baby data'''
+    def computeMsgTime(self,offset=100,tol=250,maxFixDur=500,minFixDur=80):
+        ''' identifies correct fixation duration based on offline
+            fixation extraction algorithm
+            the result is appended to self.msgs
+        '''
+        isfix=self.getFixations(hz=1000)
+        ffev=tseries2eventlist(isfix)
+        for msg in self.msgs:
+            temp=msg[2].split('th ')
+            if len(temp)!=2:continue
+            mdist=[np.inf,np.inf]; mevi=[np.nan,np.nan]
+            ms=(msg[0]-offset)
+            for evi in range(len(ffev)):
+                sdist=abs(ffev[evi][0]-1-ms)
+                if sdist<mdist[0]: mevi[0]=evi;mdist[0]=sdist
+            s=ffev[mevi[0]][0]
+            if ms-s>tol:s=ms
+            e=ffev[mevi[0]][1]
+            if s-ms>tol: s=ms;e=s+minFixDur
+            if e-s>maxFixDur: e=s+maxFixDur
+            if s-e>-minFixDur:e=s+minFixDur 
+            msg.extend([s,e])
+    def plotMsgs(self,st=0,offset=100):
+        ''' plots results of computeMsgTime,
+            green block - fixations, blue cross - saccade message
+            red block- fixation paired to saccade message
+            red line - new trial
+            magenta/cyan block - data from left/right eye available
+            x axis - time in miliseconds
+            y axis - subject id
+        '''
         ax=plt.gca()
         row=self.vp
-        plt.plot([st,st],[row,row+1],'r')
-        
-        for ev in self.bev:
-            s=ev[0];e=ev[1]
-            r=mpl.patches.Rectangle((st+s,row+0.25),e-s,0.5,color='k')
+        isfix=self.getFixations(hz=1000)
+        ffev=tseries2eventlist(isfix)
+        plt.plot([st,st],[row,row+1],'r')    
+        gz=self.getGaze(hz=1000)
+        for ev in tseries2eventlist(~np.isnan(gz[:,1])):
+            r=mpl.patches.Rectangle((st+ev[0],row+0.5),ev[1]-ev[0],0.2,color='y')
             ax.add_patch(r)
-        for ev in self.fev:
-            s=ev[0];e=ev[1]
-            r=mpl.patches.Rectangle((st+s,row+0.25),e-s,0.5,color='g')
+        for ev in tseries2eventlist(~np.isnan(gz[:,4])):
+            r=mpl.patches.Rectangle((st+ev[0],row+0.7),ev[1]-ev[0],0.2,color='c')
             ax.add_patch(r)
-        for ev in self.sev:
-            e=ev[1]-1
-            plt.plot([st+e,st+e],[row+0.2,row+0.8],'b')
-            #r=mpl.patches.Rectangle((,row+0.25),
-            #        ev[1]-ev[0],0.25,color='b')
-            #ax.add_patch(r)
+        for evi in range(len(ffev)):
+            ev=ffev[evi]
+            s=ev[0];e=ev[1]
+            r=mpl.patches.Rectangle((st+s,row+0.05),e-s,0.4,color='g')
+            ax.add_patch(r)
         for msg in self.msgs:
             temp=msg[2].split('th ')
             if len(temp)==2:
-                plt.plot(st+msg[3]-5,row+int(temp[0])/12.,'r.')
+                plt.plot(st+msg[0]-offset,row+int(temp[0])/12.,'bx')
+                r=mpl.patches.Rectangle((st+msg[3],row+0.05),msg[4]-msg[3],0.4,color='r')
+                ax.add_patch(r)
             elif len(temp)>2:
                 print 'plotMsgs:',msg[2],temp
-                raise         
+                raise
         #plt.ylim([69,86])
-        plt.xlim([0, 6*60*60])
+        plt.xlim([0, 1000*60*6])
+        plt.gca().set_xticks(np.arange(0,1000*60*6,5000))
         plt.grid(b=False)
-        #print self.gaze.shape[0], self.bev[-1][1],self.gaze[-1,0],self.gaze[self.bev[-1][1],0]
-        #print self.gaze.shape, self.fs.shape,self.fs[-1], self.revfs.shape
-        return st+self.te-self.ts
+        return st+isfix.size
 
 
 ##################################################################
@@ -928,155 +847,10 @@ class ETData():
             if t>g[tr[0]]-self.t0[0] and t<g[min(gmax,tr[1])]-self.t0[0]: 
                 return tr[2]
         return []
-#########################################################
-# functions for manual drift correction
-def plotDC(vp,block,trial):
-    ''' plot gaze during drift correction'''
-    from Preprocess import readEyelink
-    plt.interactive(False)
-#    vp=1
-#    from readETData import readEyelink
-#    for b in range(4,23):
-#        print 'block ', b
-#        data=readEyelink(vp,b)
-#        for i in range(0,len(data)):
-    b=block;i=trial
-    data=readEyelink(vp,b)
-    d=data[i]
-    gg=d.getGaze(phase=3)
-    plt.plot(gg[:,0],gg[:,1],'g--')
-    plt.plot(gg[:,0],gg[:,2],'r--')
-    plt.plot(gg[:,0],gg[:,4],'b--')
-    plt.plot(gg[:,0],gg[:,5],'k--')
-    d.extractBasicEvents()
-    d.driftCorrection(jump=manualDC(vp,b,i))
-    gg=d.getGaze(phase=3)
-    plt.plot(gg[:,0],gg[:,1],'g')
-    plt.plot(gg[:,0],gg[:,2],'r')
-    plt.plot(gg[:,0],gg[:,4],'b')
-    plt.plot(gg[:,0],gg[:,5],'k')
-    plt.plot([gg[0,0],gg[-1,0]],[0,0],'k')
-    plt.plot(d.dcfix,[-0.45,-0.45],'k',lw=2)
-    plt.grid()
-    plt.ylim([-0.5,0.5])
-    plt.legend(['left x','left y','right x','right y'])
-    plt.savefig(PATH+'dc'+os.path.sep+'vp%03db%02dtr%02d'%(vp,b,i))
-    plt.cla()
 
-def plotMD():
-    '''plots the effect of drift correction '''
-    vp=1
-    from Preprocess import readEyelink
-    for b in range(1,22):
-        plt.cla()
-        print 'block ', b
-        data=readEyelink(vp,b)
-        for d in data:
-            d.driftCorrection(jump=manualDC(vp,b,i))
-            d.plotMissingData()
-        plt.show()
-        plt.savefig('fb%02d'%(d.block))
+
         
-def manualDC(vp,b,t):
-    """ the automatic drift correction failed on some trials
-        manualDC returns time in ms relative to trial onset
-        the fixation at this time point is used to perform
-        the drift correction,
-        for out= -1 the online DC during experiment will be used
-    """
-    out=0
-    if vp==1:
-        if b==3 and t==25: out=-10
-        elif b==5 and t==10: out=50
-        elif b==6 and t==19: out=20
-        elif b==6 and t==24: out=20
-        elif b==8 and t==14: out=50
-        elif b==12 and t==37: out=0
-    elif vp==2:
-        if b==7 or b==8 or b==22 or b==21 or b==10 or b==11 or (b>12 and b<20) or b<5: out=-1
-        if b==5 and t==1: out=-50
-        if b==5 and t==14: out=100
-        if b==5 and t==17: out=-1
-        if b==5 and t>18 and t<26: out=-1
-        if b==5 and t==26: out=50
-        if b==5 and t>=29: out=-1
-        if b==5 and t==32: out=50
-        if b==6 and t==2: out=-1
-        if b==6 and t==7: out=-1
-        if b==6 and t==22: out=-1
-        if b==6 and t==23: out=-1
-        if b==6 and t==25: out=-1
-        if b==6 and t>=27: out=-1
-        if b==6 and t==33: out=0
-        if b==9 and t==1: out=-20
-        if b==9 and t==5: out=100
-        if b==9 and t==13: out=100
-        if b==9 and t==14: out=-50
-        if b==9 and t==16: out=50
-        if b==9 and t==17: out=100
-        if b==9 and t==22: out=100
-        if b==9 and t==23: out=100
-        if b==9 and t==26: out=100
-        if b==9 and t==38: out=-50
-        if b==22 and t==23: out=-50
-        if b==20 and t==14: out=-1
-        if b==20 and t==17: out=100
-        if b==20 and t==24: out=100
-        if b==20 and t==37: out=-1
-        if b==19 and t==10: out=0
-        if b==19 and t==32: out=0
-        if b==18 and t==1: out=0
-        if b==18 and t==3: out=100
-        if b==18 and t==21: out=100
-        if b==18 and t==39: out=0
-        if b==11 and t==15: out=0
-        if b==12 and t==3: out=-50
-        if b==12 and t==13: out=100
-        if b==12 and t==22: out=-50
-        if b==12 and t==24: out=-50
-        if b==12 and t==29: out=100
-        if b==12 and t==33: out=100
-        if b==12 and t==37: out=100
-        if b==12 and t==38: out=-1
-        if b==12 and t==1: out=-1
-        if b==12 and t==11: out=-1
-        if b==12 and t==19: out=-1
-        if b==12 and t==27: out=-1
-        if b==13 and t==11: out=0
-        if b==14 and t==32: out=0
-        if b==4 and t==31: out=0
-        if b==3 and t==5: out=0
-    elif vp==3:
-        out=-1
-        if b==1 and t==23: out=0
-        if b==4 and t==22: out=0
-        if b==7 and t==36: out=0
-        if b==9 and t==23: out=0
-        if b==11 and t==36: out=0
-        if b==14 and t==38: out=-50
-        if b==20 and t==27: out=0
-        if b==21 and t==27: out=-50
-        
-    elif vp==4:
-        out=-1
-        if b==1 and t==3: out=0
-        if b==1 and t==5: out=0
-        if b==1 and t==14: out=0
-        if b==1 and t==27: out=0
-        if b==1 and t==37: out=0
-        if b==3 and t==0: out=0
-        if b==5 and t==9: out=0
-        if b==11 and t==2: out=0
-        if b==15 and t==25: out=0
-        if b==15 and t==32: out=0
-        if b==16 and t==13: out=0
-        if b==17 and t==22: out=0
-        if b==18 and t==20: out=0
-        if b==19 and t==19: out=0
-        if b==20 and t==29: out=0
-        if b==5 and t==37: out=0
-    print out
-    return out
+
             
 if __name__ == '__main__':
     # following routine was used to check correctness of drift correction
