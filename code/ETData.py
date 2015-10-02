@@ -662,11 +662,12 @@ class ETData():
                     ax.add_patch(r)
         plt.xlim([0,30000])
         plt.ylim([-1,41])
-    def computeMsgTime(self,offset=100,tol=250,maxFixDur=500,minFixDur=80):
+    def computeMsgTime(self,offset=100,tol=250,maxFixDur=500):
         ''' identifies correct fixation duration based on offline
             fixation extraction algorithm
             the result is appended to self.msgs
         '''
+        minFixDur=FIXMINDUR*1000
         isfix=self.getFixations(hz=1000)
         ffev=tseries2eventlist(isfix)
         for msg in self.msgs:
@@ -677,7 +678,8 @@ class ETData():
             for evi in range(len(ffev)):
                 sdist=abs(ffev[evi][0]-1-ms)
                 if sdist<mdist[0]: mevi[0]=evi;mdist[0]=sdist
-            s=ffev[mevi[0]][0]
+            if len(ffev): s=ffev[mevi[0]][0]
+            else: s=ms
             if ms-s>tol:s=ms
             e=ffev[mevi[0]][1]
             if s-ms>tol: s=ms;e=s+minFixDur
