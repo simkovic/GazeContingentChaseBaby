@@ -7,7 +7,8 @@ import os,pystan
 from ETData import tseries2eventlist
 from Preprocess import readTobii
 from matustools.matusplotlib import *
-LBLS=[['Blink','Gaze','E3train','E3test','E4train','E4test'],['Infant','Adult','Random'],['Observed','Shuffled']]
+LBLS=[['Blink','Gaze','E3train','E3test','E4train','E4test'],
+	['Infant','Adult','Random'],['Observed','Shuffled']]
 BEV,AEV,CEV,FEV=range(4)
 ETHZ=60
 DPI=300
@@ -474,6 +475,7 @@ def plotSuppDur(clrs=['r','b','g']):
                     plt.title(['$\mathrm{E}_1$','$\mathrm{E}_2$'][ii==2])
                 else:ax.set_xticklabels([])
                 if ii%2: plt.ylabel(['Train','Test'][ii==3])
+                if not shuffle and not adult: subplotAnnotate(loc='ne')
 
     subplot(2,2,2)
     handles=[]
@@ -560,6 +562,7 @@ def plotDur():
         ax.set_xticks(range(1,9))
         ax.set_xticklabels(['G1','G2','G3','G4']*2)
         plt.title(['Train','Test'][f-6])
+        subplotAnnotate(loc='ne')
     subplot(1,2,1);handles=[];
     for i in range(len(clrs)):
         handles.append(mpl.patches.Patch(color=clrs[i],label=LBLS[1][i]))
@@ -599,6 +602,7 @@ def plotSuppInterev():
                 #else:
                 ax.set_xticklabels([])
                 if ii%3!=0: ax.set_yticklabels([])
+                if not shuffle and not adult: subplotAnnotate(loc='nw')
     subplot(2,3,5)
     handles=[]
     for i in range(len(clrs)):
@@ -635,6 +639,7 @@ def plotInterev():
         ax=plt.gca()
         ax.set_xticks(range(1,9))
         ax.set_xticklabels(['G1','G2','G3','G4']*2)
+        subplotAnnotate(loc='nw')
 
     subplot(1,2,1)
     #plt.text(-3,7,'Median Duration in Seconds',size=12,rotation='vertical')
@@ -842,8 +847,8 @@ if __name__=='__main__':
     #plotSuppDur()
     #plotDur()
     #plotSuppInterev()
-    #plotInterev()
-    plotContr()
+    plotInterev()
+    #plotContr()
 
     
 
