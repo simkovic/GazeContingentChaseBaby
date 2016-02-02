@@ -729,7 +729,7 @@ def plotContr():
         for adult in [1,0]:
             path=initPath(adult,0)
             nm=['duration','arivt'][h>0]+str(h)
-            w=loadStanFit(path['outpath']+nm+'Contr'+path['suf']+'.stanfit')
+            w=loadStanFit(path['outpath']+nm+'Contr'+path['suf'])
             errorbar(np.exp(w['hmus']),x=np.arange(3)+adult*3,clr=['r','b'][adult])
             print ['Infant','Adult'][adult]
             if not adult: tmp.append(w['hmus']/w['hsigmas'])
@@ -747,7 +747,7 @@ def plotContr():
         if not h: plt.ylabel('Median duration in seconds')
         plt.ylim([0,ylims[h]]);
         plt.title(['$\mathrm{E}_2$',r'$\mathrm{E}_2\rightarrow \mathrm{E}_1$'][h])
-        #subplotAnnotate(loc='ne')
+        subplotAnnotate(loc='sw')
     plt.savefig(path['figpath']+'stan'+os.path.sep+'Contr.png',dpi=DPI)
     eh=[0,0]
     for i in range(2):
@@ -847,8 +847,8 @@ if __name__=='__main__':
     #plotSuppDur()
     #plotDur()
     #plotSuppInterev()
-    plotInterev()
-    #plotContr()
+    #plotInterev()
+    plotContr()
 
     
 

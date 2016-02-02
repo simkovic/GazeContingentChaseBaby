@@ -72,7 +72,8 @@ def exportTrial(outname,trajectories,wind=None,hz=60):
     if type(wind)==type(None):
         wind=Q.initDisplay()
     try:
-        nrframes=trajectories.shape[0]
+        nrframes=trajectories.shape[0]/10
+        breaks=[nrframes-1]
         cond=trajectories.shape[1]
         elem=visual.ElementArrayStim(wind,fieldShape='sqr',nElements=cond,
             sizes=Q.agentSize,elementMask=RING,elementTex=None)
@@ -91,16 +92,8 @@ def exportTrial(outname,trajectories,wind=None,hz=60):
                     break;
                     #core.quit()
             #print f
-            if f in breaks:
-                wind.saveMovieFrames('%s%d.mpeg'%(outname,f/250-1),mpgCodec='mpeg1video')
-        s='copy/b '
-        for i in range(len(breaks)): s+= '%s%d.mpeg+'% (outname,i)
-        s=s[:-1]
-        s+= ' %s.mpeg'%outname
-        #print s
-        call(s,shell=True)
-        for i in range(len(breaks)): call('DEL %s%d.mpeg'%(outname,i),shell=True)
-        #print core.getTime()-t0
+            #if f in breaks:
+            wind.saveMovieFrames('%s%04d.png'%(outname,f))
         wind.close()
     except: 
         wind.close()
@@ -223,3 +216,7 @@ def showTrial(trajectories,maze=None,wind=None,highlightChase=False,
     except: 
         wind.close()
         raise
+
+if __name__ == '__main__':
+    traj=np.load('/home/matus/Desktop/GazeContingentChaseBaby/input/vp170/vp170b0trial000.npy')
+    exportTrial('out/demo',traj,hz=75)
